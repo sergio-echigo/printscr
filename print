@@ -1,0 +1,102 @@
+#!/bin/bash
+
+# Outputs a message if $1 isn't empty.
+printne () {
+	! [[ -z "$1" ]] && echo $1
+}
+
+# Calls printne and exits (returning 1)
+die() {
+	printne "$1"
+	exit 1
+}
+
+# Sets OUTPUT_PATH variable (using only for setting it if not provided with --path flag)
+setdop() {
+	# Default screenshots path
+	SCREENSHOTSP="${HOME}/Screenshots"
+	
+	# If first arg was passed (name or suffix to the name of the file)
+	if ! [[ -z "$1" ]]; then
+		if [[ "$2" -eq 1 ]]; then
+			# Saving in the default location with the provided name.
+			OUTPUT_PATH="${SCREENSHOTSP}/${1}.png"
+		else
+			# Just a suffix
+			OUTPUT_PATH="${SCREENSHOTSP}/scr_$(date +F_%H_%M_%S)${1}.png"
+		fi
+	else
+		# No suffix or file's name.
+		OUTPUT_PATH="${SCREENSHOTSP}/scr_$(date +F_%H_%M_%S).png"
+	fi
+}
+
+# Gets an area with slurp and calls grim to screenshot
+prntscr() {
+	if ! [[ -z "$1" ]]; then (slurp | grim -c -g - "$1") 1>/dev/null 2>&1; fi
+}
+
+# Checking if both slurp and grim are in PATH
+slurp -h 1>/dev/null 2>&1
+if ! [[ $? -eq 0 ]]; then
+	die "Some error occured while trying to execute slurp. Check if it's really installed and try again."
+fi
+
+grim -h 1>/dev/null 2>&1
+if ! [[ $? -eq 0 ]]; then
+	die "Some error occurred while trying to execute grim. Check if it's really installed and try again later."
+fi
+
+# Setting NAME, OUTPUT_PATH and WAIT variables (OUTPUT_PATH has a priority greather than NAME)
+if [[ $# -gt 0 ]]; then
+	for i in $@; do
+		# Setting --path or --wait values
+		if ! [[ -z "$FLAG" ]]; then
+			if [[ "$FLAG" == "--path" || "$FLAG" == "-p" ]]; then 
+				OUTPUT_PATH="$i"
+			elif [[ "$FLAG" == "--wait" || "$FLAG" == "-w" ]]; then 
+				WAIT="$i"
+			fi
+
+			FLAG=""
+		fi
+		
+		if [[ $i == "--path" || $i == "--wait"|| $i == "-p" || $i == "-w" ]]; then
+			FLAG=$i
+		elif [[ -z "$NAME" && -z "$FLAG" ]]; then
+			NAME=$i
+		fi
+	done
+fi
+
+# Exiting if --path was provided but arg for it was not.
+if ! [[ -z "$FLAG" ]]; then die "$FLAG flag provided but no arg was."; fi
+
+# Setting default OUTPUT_PATH
+if [[ -z "$OUTPUT_PATH" && -z "$NAME" ]]; then
+	# It would be great to use the most common "for" loop, but let's let this looking more with a shell script than a C code.
+	ITERATOR=0
+	setdop
+
+	while [[ -f $OUTPUT_PATH ]]; do
+		setdop "($ITERATOR)" 0
+		ITERATOR=$(($ITERATOR + 1))
+	done
+fi
+
+# If output path wasn't provided but name was.
+if [[ -z $OUTPUT_PATH ]]; then
+	setdop $NAME 1
+fi
+
+# Waiting time
+if ! [[ -z $WAIT ]]; then
+	sleep $WAIT 2>/dev/null
+	if ! [[ $? -eq 0 ]]; then
+		die "Error while trying to sleep. Check if the argument it's a number."
+	fi
+fi
+
+# Calling prntscr function
+echo "Saving at $OUTPUT_PATH"
+prntscr $OUTPUT_PATH
